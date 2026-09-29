@@ -1,1 +1,304 @@
 
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FocusENEM - Gerenciador Time Box</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+    .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 450px; text-align: center; }
+    h1 { color: #2c3e50; font-size: 1.5rem; margin-bottom: 1.2rem; }
+    .timer-display { font-size: 3.5rem; font-weight: bold; color: #e74c3c; margin: 0.8rem 0; font-family: monospace; transition: color 0.3s; }
+    .timer-display.pausa { color: #3498db; }
+    .status-badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: bold; margin-bottom: 1rem; }
+    .status-foco { background: #fadbd8; color: #c0392b; }
+    .status-pausa { background: #d6eaf8; color: #2980b9; }
+    .form-group { text-align: left; margin-bottom: 0.8rem; }
+    .form-row { display: flex; gap: 10px; }
+    .form-row .form-group { flex: 1; }
+    label { font-weight: 600; font-size: 0.85rem; color: #34495e; display: block; margin-bottom: 0.3rem; }
+    input, select, button { width: 100%; padding: 0.65rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; }
+    button { background-color: #27ae60; color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; margin-top: 0.5rem; }
+    button:hover { background-color: #219150; }
+    .stop-btn { background-color: #e74c3c; display: none; }
+    .stop-btn:hover { background-color: #c0392b; }
+    .skip-btn { background-color: #3498db; display: none; }
+    .skip-btn:hover { background-color: #2980b9; }
+    .meta-container { background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.8rem; margin: 1rem 0; text-align: left; }
+    .progress-bar-bg { background: #e2e8f0; height: 10px; border-radius: 5px; margin-top: 5px; overflow: hidden; }
+    .progress-bar-fill { background: #2ecc71; height: 100%; width: 0%; transition: width 0.4s ease; }
+    .history { margin-top: 1.5rem; text-align: left; }
+    .history h3 { font-size: 1rem; color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 0.3rem; margin-bottom: 0.5rem; }
+    .history-header { display: flex; justify-content: space-between; align-items: center; }
+    .clear-btn { background: none; color: #95a5a6; border: none; padding: 0; font-size: 0.75rem; cursor: pointer; text-decoration: underline; width: auto; margin: 0; }
+    .clear-btn:hover { color: #7f8c8d; }
+    ul { list-style: none; padding: 0; margin: 0; max-height: 120px; overflow-y: auto; }
+    li { background: #f8f9fa; padding: 0.5rem; border-left: 4px solid #27ae60; margin-bottom: 0.5rem; font-size: 0.85rem; display: flex; justify-content: space-between; }
+    li.break-log { border-left-color: #3498db; background: #f4f9fc; }
+    .log-date { color: #95a5a6; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>🎯 FocusENEM - Time Box</h1>
+    
+    <div id="statusBadge" class="status-badge status-foco">MODO FOCO</div>
+
+    <div id="configInputs">
+      <div class="form-group">
+        <label for="materia">Área / Matéria do ENEM:</label>
+        <select id="materia">
+          <option value="Matemática">Matemática</option>
+          <option value="Redação">Redação</option>
+          <option value="Linguagens">Linguagens</option>
+          <option value="Ciências da Natureza">Ciências da Natureza</option>
+          <option value="Ciências Humanas">Ciências Humanas</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="topico">Tópico Específico (Conteúdo):</label>
+        <input type="text" id="topico" placeholder="Ex: Geometria Plana, Redação Nota 1000">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="duracao">Foco (min):</label>
+          <input type="number" id="duracao" value="25" min="1" max="60" oninput="atualizarTempoInicial()" onchange="atualizarTempoInicial()">
+        </div>
+        <div class="form-group">
+          <label for="metaInput">Meta (Blocos):</label>
+          <input type="number" id="metaInput" value="4" min="1" max="20" onchange="atualizarMeta()">
+        </div>
+      </div>
+    </div>
+
+    <div class="timer-display" id="timer">25:00</div>
+
+    <button id="startBtn" onclick="iniciarTimeBox()">Iniciar Bloco de Foco</button>
+    <button id="stopBtn" class="stop-btn" onclick="pararTimeBox()">Interromper Bloco</button>
+    <button id="skipBtn" class="skip-btn" onclick="pularPausa()">Pular Pausa e Voltar ao Foco</button>
+
+    <div class="meta-container">
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: bold; color: #34495e;">
+        <span>Progresso Diário:</span>
+        <span id="contadorMeta">0 / 4 blocos</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div id="progressBar" class="progress-bar-fill"></div>
+      </div>
+    </div>
+
+    <div class="history">
+      <div class="history-header">
+        <h3>Histórico de Ciclos</h3>
+        <button class="clear-btn" onclick="limparHistorico()">Limpar Tudo</button>
+      </div>
+      <ul id="listaHistorico"></ul>
+    </div>
+  </div>
+
+  <script>
+    let tempoRestante = 0;
+    let timerInterval = null;
+    let modoAtual = "foco"; 
+    
+    let dadosApp = {
+      historico: [],
+      blocosConcluidosHoje: 0,
+      metaDiaria: 4
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      carregarDadosLocalStorage();
+      atualizarTempoInicial();
+      atualizarInterfaceMetas();
+      renderizarHistorico();
+    });
+
+    function atualizarDisplay(segundos) {
+      const min = String(Math.floor(segundos / 60)).padStart(2, '0');
+      const seg = String(segundos % 60).padStart(2, '0');
+      document.getElementById('timer').innerText = min + ":" + seg;
+    }
+
+    function atualizarTempoInicial() {
+      if (timerInterval !== null) return; 
+
+      if (modoAtual === "foco") {
+        const minutos = parseInt(document.getElementById('duracao').value);
+        if (!isNaN(minutos) && minutos > 0) {
+          atualizarDisplay(minutos * 60);
+        }
+      } else {
+        atualizarDisplay(5 * 60); 
+      }
+    }
+
+    function iniciarTimeBox() {
+      if (timerInterval !== null) clearInterval(timerInterval);
+
+      if (modoAtual === "foco") {
+        const minutos = parseInt(document.getElementById('duracao').value);
+        if (isNaN(minutos) || minutos <= 0) return alert('Informe um tempo válido.');
+        tempoRestante = minutos * 60;
+      } else {
+        tempoRestante = 5 * 60; 
+      }
+
+      atualizarDisplay(tempoRestante);
+
+      toggleInputsBloqueados(true);
+      document.getElementById('startBtn').style.display = 'none';
+      document.getElementById('stopBtn').style.display = modoAtual === "foco" ? 'block' : 'none';
+      document.getElementById('skipBtn').style.display = modoAtual === "pausa" ? 'block' : 'none';
+
+      timerInterval = setInterval(() => {
+        tempoRestante--;
+        atualizarDisplay(tempoRestante);
+
+        if (tempoRestante <= 0) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          
+          if (modoAtual === "foco") {
+            alert('⏰ Time Box encerrada! Faça sua pausa obrigatória de 5 minutos imediatamente.');
+            registrarBlocoFoco();
+            iniciarModoPausa();
+          } else {
+            alert('⚡ Pausa terminada! Pronto para o próximo bloco de foco?');
+            registrarBlocoPausa();
+            iniciarModoFoco();
+          }
+        }
+      }, 1000);
+    }
+
+    function pararTimeBox() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      alert('Bloco de foco interrompido.');
+      resetsInterface();
+    }
+
+    function iniciarModoPausa() {
+      modoAtual = "pausa";
+      const badge = document.getElementById('statusBadge');
+      badge.innerText = "MODO PAUSA (DESCANSO)";
+      badge.className = "status-badge status-pausa";
+      document.getElementById('timer').className = "timer-display pausa";
+      iniciarTimeBox(); 
+    }
+
+    function iniciarModoFoco() {
+      modoAtual = "foco";
+      const badge = document.getElementById('statusBadge');
+      badge.innerText = "MODO FOCO";
+      badge.className = "status-badge status-foco";
+      document.getElementById('timer').className = "timer-display";
+      resetsInterface();
+    }
+
+    function pularPausa() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      iniciarModoFoco();
+    }
+
+    function resetsInterface() {
+      toggleInputsBloqueados(false);
+      document.getElementById('startBtn').style.display = 'block';
+      document.getElementById('stopBtn').style.display = 'none';
+      document.getElementById('skipBtn').style.display = 'none';
+      atualizarTempoInicial();
+    }
+
+    function toggleInputsBloqueados(bloquear) {
+      document.getElementById('materia').disabled = bloquear;
+      document.getElementById('topico').disabled = bloquear;
+      document.getElementById('duracao').disabled = bloquear;
+      document.getElementById('metaInput').disabled = bloquear;
+    }
+
+    function registrarBlocoFoco() {
+      const materia = document.getElementById('materia').value;
+      const topicoOriginal = document.getElementById('topico').value.trim();
+      const topico = topicoOriginal !== "" ? topicoOriginal : "Conteúdo Geral";
+      const minutos = document.getElementById('duracao').value;
+      const dataHora = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+      const logText = "■ Foco: " + materia + " (" + topico + ") - " + minutos + " min";
+      
+      dadosApp.historico.unshift({ tipo: 'foco', texto: logText, hora: dataHora });
+      dadosApp.blocosConcluidosHoje++;
+      
+      salvarDadosLocalStorage();
+      atualizarInterfaceMetas();
+      renderizarHistorico();
+      
+      document.getElementById('topico').value = ""; 
+    }
+
+    function registrarBlocoPausa() {
+      const dataHora = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      dadosApp.historico.unshift({ tipo: 'pausa', texto: "☕ Pausa Obrigatória Concluída - 5 min", hora: dataHora });
+      salvarDadosLocalStorage();
+      renderizarHistorico();
+    }
+
+    function atualizarMeta() {
+      const novaMeta = parseInt(document.getElementById('metaInput').value);
+      if (!isNaN(novaMeta) && novaMeta > 0) {
+        dadosApp.metaDiaria = novaMeta;
+        salvarDadosLocalStorage();
+        atualizarInterfaceMetas();
+      }
+    }
+
+    function atualizarInterfaceMetas() {
+      document.getElementById('metaInput').value = dadosApp.metaDiaria;
+      document.getElementById('contadorMeta').innerText = dadosApp.blocosConcluidosHoje + " / " + dadosApp.metaDiaria + " blocos";
+      
+      const porcentagem = Math.min((dadosApp.blocosConcluidosHoje / dadosApp.metaDiaria) * 100, 100);
+      document.getElementById('progressBar').style.width = porcentagem + "%";
+    }
+
+    function renderizarHistorico() {
+      const lista = document.getElementById('listaHistorico');
+      lista.innerHTML = "";
+      
+      dadosApp.historico.forEach(item => {
+        const li = document.createElement('li');
+        if(item.tipo === 'pausa') li.className = 'break-log';
+        
+        li.innerHTML = "<span>" + item.texto + "</span> <span class='log-date'>" + item.hora + "</span>";
+        lista.appendChild(li);
+      });
+    }
+
+    function salvarDadosLocalStorage() {
+      localStorage.setItem('focusEnem_dados', JSON.stringify(dadosApp));
+    }
+
+    function carregarDadosLocalStorage() {
+      const dadosSalvos = localStorage.getItem('focusEnem_dados');
+      if (dadosSalvos) {
+        dadosApp = JSON.parse(dadosSalvos);
+      }
+    }
+
+    function limparHistorico() {
+      if(confirm("Deseja zerar seu histórico e progresso de hoje?")) {
+        dadosApp.historico = [];
+        dadosApp.blocosConcluidosHoje = 0;
+        salvarDadosLocalStorage();
+        atualizarInterfaceMetas();
+        renderizarHistorico();
+      }
+    }
+  </script>
+</body>
+</html>
